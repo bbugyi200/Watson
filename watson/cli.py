@@ -5,6 +5,7 @@ import itertools
 import json
 import operator
 import os
+import re
 
 from dateutil import tz
 from functools import reduce
@@ -876,25 +877,34 @@ def remove(watson, id, force):
     Remove a frame. You can specify the frame either by id or by position
     (ex: `-1` for the last frame).
     """
-    frame = get_frame_from_argument(watson, id)
-    id = frame.id
+    pttrn = re.compile('-[0-9]+:-[0-9]+')
+    number_of_ids = 1
+    if pttrn.match(id):
+        first, last = [int(x) for x in id.replace('-', '').split(':')]
+        number_of_ids = last - first + 1
+        assert number_of_ids > 0
 
-    if not force:
-        click.confirm(
-            "You are about to remove frame "
-            "{project}{tags} from {start} to {stop}, continue?".format(
-                project=style('project', frame.project),
-                tags=(" " if frame.tags else "") + style('tags', frame.tags),
-                start=style('time', '{:HH:mm}'.format(frame.start)),
-                stop=style('time', '{:HH:mm}'.format(frame.stop))
-            ),
-            abort=True
-        )
+        id = id[:id.find(':')]
 
-    del watson.frames[id]
+    for _ in range(number_of_ids):
+        frame = get_frame_from_argument(watson, id)
 
-    watson.save()
-    click.echo("Frame removed.")
+        if not force:
+            click.confirm(
+                "You are about to remove frame "
+                "{project}{tags} from {start} to {stop}, continue?".format(
+                    project=style('project', frame.project),
+                    tags=(" " if frame.tags else "") + style('tags', frame.tags),
+                    start=style('time', '{:HH:mm}'.format(frame.start)),
+                    stop=style('time', '{:HH:mm}'.format(frame.stop))
+                ),
+                abort=True
+            )
+
+        del watson.frames[frame.id]
+
+        click.echo("Frame removed.")
+        watson.save()
 
 
 @cli.command()
