@@ -61,6 +61,26 @@ class DateParamType(click.ParamType):
             return date
 
 
+def parse_id_arg(watson, id):
+    """ Helper function used to parse the 'id' argument
+
+    @id: must be either a frame-id, a single relative number (e.g. @5 or -5),
+         or a range of relative numbers (e.g. @3:@5 or -3:-5)
+    """
+    id = id.replace('@', '-')
+
+    pttrn = re.compile('-[0-9]+:-[0-9]+')
+    count = 1
+    if pttrn.match(id):
+        first, last = [int(x) for x in id.replace('-', '').split(':')]
+        count = last - first + 1
+        assert count > 0
+
+        id = id[:id.find(':')]
+
+    return count, id
+
+
 Date = DateParamType()
 
 
@@ -877,18 +897,10 @@ def remove(watson, id, force):
     Remove a frame. You can specify the frame either by id or by position
     (ex: `-1` for the last frame).
     """
-    pttrn = re.compile('-[0-9]+:-[0-9]+')
-    number_of_ids = 1
-    if pttrn.match(id):
-        first, last = [int(x) for x in id.replace('-', '').split(':')]
-        number_of_ids = last - first + 1
-        assert number_of_ids > 0
+    count, id = parse_id_arg(watson, id)
 
-        id = id[:id.find(':')]
-
-    for _ in range(number_of_ids):
+    for _ in range(count):
         frame = get_frame_from_argument(watson, id)
-
         if not force:
             click.confirm(
                 "You are about to remove frame "
