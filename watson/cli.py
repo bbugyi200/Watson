@@ -64,24 +64,47 @@ class DateParamType(click.ParamType):
 def parse_id_arg(watson, id):
     """ Helper function used to parse the 'id' argument
 
-    @id: must be either a frame-id, a single relative number (e.g. @5),
-         or a range of relative numbers (e.g. @3:@5)
+    @id: can be either a frame-id or an ID pattern. A valid ID pattern consititutes
+         as one of the following: a single relative ID (e.g. @5), a comma-separated
+         list of relative IDs (e.g. @1,@3), a range of relative IDs (e.g. @3:@5), or
+         any combination of the aforementioned patterns (e.g. @1,@3:@5).
     """
     if id is None:
-        return 1, None
+        return [None]
 
-    id = id.replace('@', '-')
+    id_raw = id
 
-    pttrn = re.compile('-[0-9]+:-[0-9]+')
-    count = 1
-    if pttrn.match(id):
-        first, last = [int(x) for x in id.replace('-', '').split(':')]
-        count = last - first + 1
-        assert count > 0
+    id = id_raw.replace('@', '-')
+    id = id.replace('-', '')
 
-        id = id[:id.find(':')]
+    def get_frame(id):
+        if watson.is_started:
+            if int(id) == 1:
+                return Frame(watson.current['start'], None, watson.current['project'],
+                             None, watson.current['tags'])
+            else:
+                id = '{0:d}'.format(int(id) - 1)
 
-    return count, id
+        return get_frame_from_argument(watson, '-' + str(id))
+
+    group_pttrn = re.compile('[0-9]+[,:][0-9]+([,:][0-9]+)*$')
+    single_pttrn = re.compile('[0-9]+$')
+
+    frames = []
+    if group_pttrn.match(id):
+        for id_pttrn in id.split(','):
+            if ':' in id_pttrn:
+                first, last = [int(x) for x in id_pttrn.split(':')]
+                for n in range(first, last+1):
+                    frames.append(get_frame(n))
+            else:
+                frames.append(get_frame(id_pttrn))
+    elif single_pttrn.match(id):
+        frames.append(get_frame(id))
+    else:
+        raise click.ClickException(style('error', '{} is not a valid frame identifier!'.format(id_raw)))
+
+    return frames
 
 
 Date = DateParamType()
@@ -798,7 +821,7 @@ def frames(watson):
         click.echo(style('short_id', frame.id))
 
 
-def edit_frame(watson, id):
+def edit_frame(watson, frame=None):
     """ Worker function for 'edit' command
 
     This function is where all the heavy lifting happens for the 'edit' command.
@@ -808,17 +831,16 @@ def edit_frame(watson, id):
     datetime_format = '{} {}'.format(date_format, time_format)
     local_tz = tz.tzlocal()
 
-    if id:
-        frame = get_frame_from_argument(watson, id)
-    elif watson.is_started:
-        frame = Frame(watson.current['start'], None, watson.current['project'],
-                      None, watson.current['tags'])
-    elif watson.frames:
-        frame = watson.frames[-1]
-    else:
-        raise click.ClickException(
-            style('error', "No frames recorded yet. It's time to create your "
-                           "first one!"))
+    if frame is None:
+        if watson.is_started:
+            frame = Frame(watson.current['start'], None, watson.current['project'],
+                          None, watson.current['tags'])
+        elif watson.frames:
+            frame = watson.frames[-1]
+        else:
+            raise click.ClickException(
+                style('error', "No frames recorded yet. It's time to create your "
+                               "first one!"))
 
     data = {
         'start': frame.start.format(datetime_format),
@@ -893,12 +915,10 @@ def edit(watson, id):
     variables (in that order) and defaults to `notepad` on Windows systems and
     to `vim`, `nano` or `vi` (first one found) on all other systems.
     """
-    count, id = parse_id_arg(watson, id)
+    frames = parse_id_arg(watson, id)
 
-    edit_frame(watson, id)
-    for _ in range(count-1):
-        edit_frame(watson, id)
-        id = '-' + str(int(id[1:]) + 1)
+    for frame in frames:
+        edit_frame(watson, frame)
 
 
 @cli.command(context_settings={'ignore_unknown_options': True})
@@ -911,10 +931,9 @@ def remove(watson, id, force):
     Remove a frame. You can specify the frame either by id or by position
     (ex: `-1` for the last frame).
     """
-    count, id = parse_id_arg(watson, id)
+    frames = parse_id_arg(watson, id)
 
-    for _ in range(count):
-        frame = get_frame_from_argument(watson, id)
+    for frame in frames:
         if not force:
             click.confirm(
                 "You are about to remove frame "
@@ -930,8 +949,9 @@ def remove(watson, id, force):
         del watson.frames[frame.id]
 
     watson.save()
-    if count > 1:
-        click.echo('{} Frames removed.'.format(count))
+    size = len(frames)
+    if size > 1:
+        click.echo('{} Frames removed.'.format(size))
     else:
         click.echo("Frame removed.")
 
