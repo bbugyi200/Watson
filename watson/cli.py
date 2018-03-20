@@ -74,6 +74,7 @@ def parse_id_arg(watson, id):
 
     raw_id = id
     id = re.sub('@|-| ', '', id)
+    id = re.sub('([0-9]+):[0-9]+:([0-9]+)', r'\1:\2', id)
 
     def get_frame(id):
         if watson.is_started:
