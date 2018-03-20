@@ -64,9 +64,12 @@ class DateParamType(click.ParamType):
 def parse_id_arg(watson, id):
     """ Helper function used to parse the 'id' argument
 
-    @id: must be either a frame-id, a single relative number (e.g. @5 or -5),
-         or a range of relative numbers (e.g. @3:@5 or -3:-5)
+    @id: must be either a frame-id, a single relative number (e.g. @5),
+         or a range of relative numbers (e.g. @3:@5)
     """
+    if id is None:
+        return 1, None
+
     id = id.replace('@', '-')
 
     pttrn = re.compile('-[0-9]+:-[0-9]+')
@@ -795,23 +798,10 @@ def frames(watson):
         click.echo(style('short_id', frame.id))
 
 
-@cli.command(context_settings={'ignore_unknown_options': True})
-@click.argument('id', required=False)
-@click.pass_obj
-def edit(watson, id):
-    """
-    Edit a frame.
+def edit_frame(watson, id):
+    """ Worker function for 'edit' command
 
-    You can specify the frame to edit by its position or by its frame id.
-    For example, to edit the second-to-last frame, pass `-2` as the frame
-    index. You can get the id of a frame with the `watson log` command.
-
-    If no id or index is given, the frame defaults to the current frame or the
-    last recorded frame, if no project is currently running.
-
-    The editor used is determined by the `VISUAL` or `EDITOR` environment
-    variables (in that order) and defaults to `notepad` on Windows systems and
-    to `vim`, `nano` or `vi` (first one found) on all other systems.
+    This function is where all the heavy lifting happens for the 'edit' command.
     """
     date_format = 'YYYY-MM-DD'
     time_format = 'HH:mm:ss'
@@ -820,13 +810,11 @@ def edit(watson, id):
 
     if id:
         frame = get_frame_from_argument(watson, id)
-        id = frame.id
     elif watson.is_started:
         frame = Frame(watson.current['start'], None, watson.current['project'],
                       None, watson.current['tags'])
     elif watson.frames:
         frame = watson.frames[-1]
-        id = frame.id
     else:
         raise click.ClickException(
             style('error', "No frames recorded yet. It's time to create your "
@@ -838,7 +826,7 @@ def edit(watson, id):
         'tags': frame.tags,
     }
 
-    if id:
+    if frame.id:
         data['stop'] = frame.stop.format(datetime_format)
 
     text = json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
@@ -855,7 +843,7 @@ def edit(watson, id):
         start = arrow.get(data['start'], datetime_format).replace(
             tzinfo=local_tz).to('utc')
         stop = arrow.get(data['stop'], datetime_format).replace(
-            tzinfo=local_tz).to('utc') if id else None
+            tzinfo=local_tz).to('utc') if frame.id else None
     except (ValueError, RuntimeError) as e:
         raise click.ClickException("Error saving edited frame: {}".format(e))
     except KeyError:
@@ -863,8 +851,8 @@ def edit(watson, id):
             "The edited frame must contain the project, start and stop keys."
         )
 
-    if id:
-        watson.frames[id] = (project, start, stop, tags)
+    if frame.id:
+        watson.frames[frame.id] = (project, start, stop, tags)
     else:
         watson.current = dict(start=start, project=project, tags=tags)
 
@@ -885,6 +873,32 @@ def edit(watson, id):
             )
         )
     )
+
+
+@cli.command(context_settings={'ignore_unknown_options': True})
+@click.argument('id', required=False)
+@click.pass_obj
+def edit(watson, id):
+    """
+    Edit a frame.
+
+    You can specify the frame to edit by its position or by its frame id.
+    For example, to edit the second-to-last frame, pass `-2` as the frame
+    index. You can get the id of a frame with the `watson log` command.
+
+    If no id or index is given, the frame defaults to the current frame or the
+    last recorded frame, if no project is currently running.
+
+    The editor used is determined by the `VISUAL` or `EDITOR` environment
+    variables (in that order) and defaults to `notepad` on Windows systems and
+    to `vim`, `nano` or `vi` (first one found) on all other systems.
+    """
+    count, id = parse_id_arg(watson, id)
+
+    edit_frame(watson, id)
+    for _ in range(count-1):
+        edit_frame(watson, id)
+        id = '-' + str(int(id[1:]) + 1)
 
 
 @cli.command(context_settings={'ignore_unknown_options': True})
