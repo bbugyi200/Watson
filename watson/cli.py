@@ -937,7 +937,14 @@ def remove(watson, id, force):
                 abort=True
             )
 
-        del watson.frames[frame.id]
+        if frame.id:
+            del watson.frames[frame.id]
+        elif frame.start == watson.current['start']:
+            error_msg = 'Cannot delete the current frame! Run the `stop` command and try again.'
+            raise click.ClickException(style('error', error_msg))
+        else:
+            error_msg = 'An unknown error has occurred. Cannot locate frame.'
+            raise click.ClickException(style('error', error_msg))
 
     watson.save()
     size = len(frames)
