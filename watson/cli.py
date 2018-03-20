@@ -72,10 +72,8 @@ def parse_id_arg(watson, id):
     if id is None:
         return [None]
 
-    id_raw = id
-
-    id = id_raw.replace('@', '-')
-    id = id.replace('-', '')
+    raw_id = id
+    id = re.sub('@|-| ', '', id)
 
     def get_frame(id):
         if watson.is_started:
@@ -102,7 +100,7 @@ def parse_id_arg(watson, id):
     elif single_pttrn.match(id):
         frames.append(get_frame(id))
     else:
-        raise click.ClickException(style('error', '{} is not a valid frame identifier!'.format(id_raw)))
+        raise click.ClickException(style('error', '{} is not a valid frame identifier!'.format(raw_id)))
 
     return frames
 
