@@ -821,82 +821,6 @@ def frames(watson):
         click.echo(style('short_id', frame.id))
 
 
-def edit_frame(watson, frame=None):
-    """ Worker function for 'edit' command
-
-    This function is where all the heavy lifting happens for the 'edit' command.
-    """
-    date_format = 'YYYY-MM-DD'
-    time_format = 'HH:mm:ss'
-    datetime_format = '{} {}'.format(date_format, time_format)
-    local_tz = tz.tzlocal()
-
-    if frame is None:
-        if watson.is_started:
-            frame = Frame(watson.current['start'], None, watson.current['project'],
-                          None, watson.current['tags'])
-        elif watson.frames:
-            frame = watson.frames[-1]
-        else:
-            raise click.ClickException(
-                style('error', "No frames recorded yet. It's time to create your "
-                               "first one!"))
-
-    data = {
-        'start': frame.start.format(datetime_format),
-        'project': frame.project,
-        'tags': frame.tags,
-    }
-
-    if frame.id:
-        data['stop'] = frame.stop.format(datetime_format)
-
-    text = json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
-    output = click.edit(text, extension='.json')
-
-    if not output:
-        click.echo("No change made.")
-        return
-
-    try:
-        data = json.loads(output)
-        project = data['project']
-        tags = data['tags']
-        start = arrow.get(data['start'], datetime_format).replace(
-            tzinfo=local_tz).to('utc')
-        stop = arrow.get(data['stop'], datetime_format).replace(
-            tzinfo=local_tz).to('utc') if frame.id else None
-    except (ValueError, RuntimeError) as e:
-        raise click.ClickException("Error saving edited frame: {}".format(e))
-    except KeyError:
-        raise click.ClickException(
-            "The edited frame must contain the project, start and stop keys."
-        )
-
-    if frame.id:
-        watson.frames[frame.id] = (project, start, stop, tags)
-    else:
-        watson.current = dict(start=start, project=project, tags=tags)
-
-    watson.save()
-    click.echo(
-        "Edited frame for project {project}{tags}, from {start} to {stop} "
-        "({delta})".format(
-            delta=format_timedelta(stop - start) if stop else '-',
-            project=style('project', project),
-            tags=(" " if tags else "") + style('tags', tags),
-            start=style(
-                'time',
-                start.to(local_tz).format(time_format)
-            ),
-            stop=style(
-                'time',
-                stop.to(local_tz).format(time_format) if stop else '-'
-            )
-        )
-    )
-
-
 @cli.command(context_settings={'ignore_unknown_options': True})
 @click.argument('id', required=False)
 @click.pass_obj
@@ -915,10 +839,78 @@ def edit(watson, id):
     variables (in that order) and defaults to `notepad` on Windows systems and
     to `vim`, `nano` or `vi` (first one found) on all other systems.
     """
+    date_format = 'YYYY-MM-DD'
+    time_format = 'HH:mm:ss'
+    datetime_format = '{} {}'.format(date_format, time_format)
+    local_tz = tz.tzlocal()
+
     frames = parse_id_arg(watson, id)
 
     for frame in frames:
-        edit_frame(watson, frame)
+        if frame is None:
+            if watson.is_started:
+                frame = Frame(watson.current['start'], None, watson.current['project'],
+                              None, watson.current['tags'])
+            elif watson.frames:
+                frame = watson.frames[-1]
+            else:
+                raise click.ClickException(
+                    style('error', "No frames recorded yet. It's time to create your "
+                                   "first one!"))
+
+        data = {
+            'start': frame.start.format(datetime_format),
+            'project': frame.project,
+            'tags': frame.tags,
+        }
+
+        if frame.id:
+            data['stop'] = frame.stop.format(datetime_format)
+
+        text = json.dumps(data, indent=4, sort_keys=True, ensure_ascii=False)
+        output = click.edit(text, extension='.json')
+
+        if not output:
+            click.echo("No change made.")
+            return
+
+        try:
+            data = json.loads(output)
+            project = data['project']
+            tags = data['tags']
+            start = arrow.get(data['start'], datetime_format).replace(
+                tzinfo=local_tz).to('utc')
+            stop = arrow.get(data['stop'], datetime_format).replace(
+                tzinfo=local_tz).to('utc') if frame.id else None
+        except (ValueError, RuntimeError) as e:
+            raise click.ClickException("Error saving edited frame: {}".format(e))
+        except KeyError:
+            raise click.ClickException(
+                "The edited frame must contain the project, start and stop keys."
+            )
+
+        if frame.id:
+            watson.frames[frame.id] = (project, start, stop, tags)
+        else:
+            watson.current = dict(start=start, project=project, tags=tags)
+
+        watson.save()
+        click.echo(
+            "Edited frame for project {project}{tags}, from {start} to {stop} "
+            "({delta})".format(
+                delta=format_timedelta(stop - start) if stop else '-',
+                project=style('project', project),
+                tags=(" " if tags else "") + style('tags', tags),
+                start=style(
+                    'time',
+                    start.to(local_tz).format(time_format)
+                ),
+                stop=style(
+                    'time',
+                    stop.to(local_tz).format(time_format) if stop else '-'
+                )
+            )
+        )
 
 
 @cli.command(context_settings={'ignore_unknown_options': True})
