@@ -539,12 +539,11 @@ def report(watson, current, from_, to, projects,
                 ))
         _print("")
 
-    if len(projects) > 1:
-        _print('Total: {}'.format(
-            style('time', '{}'.format(format_timedelta(
-                datetime.timedelta(seconds=report['time'])
-            )))
-        ))
+    _print('Total: {}'.format(
+        style('time', '{}'.format(format_timedelta(
+            datetime.timedelta(seconds=report['time'])
+        )))
+    ))
 
     _final_print(lines)
 
