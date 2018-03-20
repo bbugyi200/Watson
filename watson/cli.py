@@ -700,7 +700,7 @@ def log(watson, current, from_, to, projects, tags, year, month, week, day,
         if i != 0:
             _print('')
 
-        frames = sorted(frames, key=operator.attrgetter('start'))
+        frames = sorted(frames, key=operator.attrgetter('start'), reverse=True)
         longest_project = max(len(frame.project) for frame in frames)
 
         daily_total = reduce(
@@ -716,7 +716,8 @@ def log(watson, current, from_, to, projects, tags, year, month, week, day,
         )
 
         _print("\n".join(
-            "\t{id}  {start} to {stop}  {delta:>11}  {project}{tags}".format(
+            "\t@{index:<3}  {id}  {start} to {stop}  {delta:>11}  {project}{tags}".format(
+                index=abs(watson.frames._get_index_by_id(frame.id) - len(watson.frames)),
                 delta=format_timedelta(frame.stop - frame.start),
                 project=style('project',
                               '{:>{}}'.format(frame.project, longest_project)),
