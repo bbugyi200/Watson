@@ -929,8 +929,11 @@ def remove(watson, id, force):
 
         del watson.frames[frame.id]
 
+    watson.save()
+    if count > 1:
+        click.echo('{} Frames removed.'.format(count))
+    else:
         click.echo("Frame removed.")
-        watson.save()
 
 
 @cli.command()
