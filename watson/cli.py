@@ -225,10 +225,10 @@ def stop(watson):
 @cli.command(context_settings={'ignore_unknown_options': True})
 @click.option('-s/-S', '--stop/--no-stop', 'stop_', default=None,
               help="(Don't) Stop an already running project.")
-@click.argument('frame', default='-1')
+@click.argument('id', default='-1')
 @click.pass_obj
 @click.pass_context
-def restart(ctx, watson, frame, stop_):
+def restart(ctx, watson, id, stop_):
     """
     Restart monitoring time for a previously stopped project.
 
@@ -274,7 +274,8 @@ def restart(ctx, watson, frame, stop_):
                 style('project', watson.current['project']),
                 style('tags', watson.current['tags'])))
 
-    frame = get_frame_from_argument(watson, frame)
+    id = id.replace('@', '-')
+    frame = get_frame_from_argument(watson, id)
 
     _start(watson, frame.project, frame.tags, restart=True)
 
